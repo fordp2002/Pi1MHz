@@ -11,6 +11,9 @@ becomes, all at once:
   volumes for Domesday software
 - **MMFS / MMFS2** - DFS disc images served from the SD card
 - **Music 5000 / 3000** synthesiser, and an optional **SID** chip (BeebSID)
+- **MIDI in and out** (optional, off by default) - an MC6850 at `&FC08`
+  on the serial debug pins, for 6850 MIDI software; see
+  [MIDI](docs/user/midi.md)
 - **JIM RAM expansion** - hundreds of megabytes of paged RAM
 - **HDMI output** - a screen redirector with a mouse-pointer overlay
 - **WiFi** (on WiFi-equipped Pis) - a built-in web interface and WebDAV
@@ -71,6 +74,8 @@ guide.
 
 - PCB space is limited for a dedicated serial debug connector on some
   builds; a custom 3-pin header (0V, TX, RX) can be fitted under a Pi Zero.
+  The same header carries the optional [MIDI port](docs/user/midi.md); while
+  that is on, there is no serial debug log.
 
 ## Credits and acknowledgements
 

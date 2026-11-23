@@ -43,6 +43,21 @@ ordinary RAM and may be overwritten. If a file `JIM_Init.bin` exists in
 the SD card root it is loaded into JIM from the start (overwriting the
 greeting), so large programs or data can be pre-staged on the card.
 
+## MIDI port (MC6850, off by default)
+
+An optional MC6850 ACIA on the serial debug pins (GPIO 14 out, 15 in, 31250
+baud), enabled by `MIDI_addr` in `Pi1MHz.cfg` - `0x08`, the Music 2000's
+first port, is recommended:
+
+    base      read: status    write: control (&03 master reset, &16 8N1)
+    base + 1  read: RX byte   write: TX byte
+
+Status bits 0 RDRF, 1 TDRE, 5 OVRN and 7 IRQ are live; DCD, CTS, FE and PE
+read 0. The port refuses to start on an address another device uses. Up to
+256 received bytes queue behind the data register, and TDRE stays set until
+`midi_tx_depth` (64) bytes are waiting. Full description, wiring and
+limitations: [MIDI](user/midi.md).
+
 ## Services port (`&FCA6`): SD/FAT and AUN command interface
 
 A general command mailbox. The first byte of a command block selects a
