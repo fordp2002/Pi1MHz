@@ -87,6 +87,7 @@ plus `_addr`:
 | `Telnetd_addr` | (none), **off by default** | The telnet daemon (no FRED address): on when `telnetd_port` is set; `Telnetd_addr=-1` turns it off whatever else is set |
 | `Serial_addr` | `0xCC` | The serial redirector (helper 19, and TelnetD) at `&FCB7-&FCFC`: its stub at `&FCCC-&FCFC`, the stub's escape routine at `&FCBF-&FCC9` and the TelnetD ROM's workspace at `&FCB7-&FCBE`. The whole block moves with the base (base-&15 to base+&30). The TelnetD ROM needs it at `0xCC` |
 | `Watchdog_addr` | (none) | Watchdog (use the `watchdog` key below instead) |
+| `MIDI_addr` | `0x08`, **off by default** | [MIDI port](midi.md): an MC6850 at `&FCNN-&FCNN+1` on the serial debug pins - set an address to enable. Its two addresses must be free, or it does not start: `0x00` (`&FC00`) needs `Rambyte_addr=0x04` |
 
 **Two bases you should not move:** `Framebuffer_addr` (default `&FCA0`)
 and `Services_addr` (default `&FCA6`) are hard-wired into the built-in
@@ -175,6 +176,16 @@ See [Sound](sound.md).
 |---|---|---|
 | `M5000_Gain` | `3` | Music 5000 output gain. Add 1000 to the value to also switch off automatic scaling (which normally reduces gain if the output clips) - e.g. `M5000_Gain=1016` means gain 16, no auto-scaling. |
 | `BeebSID_addr` | off | Set `0x20` to enable the SID chip at `&FC20`. Enabling BeebSID disables the Music 5000 - they share the audio output. |
+
+## MIDI settings
+
+See [MIDI in and out](midi.md). The port is switched on by `MIDI_addr`
+(above); while it is on there is no serial debug log.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `midi_tx_depth` | `64` | Bytes that may wait to be sent before the 6850's TDRE drops (1-1024). |
+| `midi_break_panic` | off | `1` sends sustain off, all sound off and all notes off on all 16 channels at every BBC reset. |
 
 ## WiFi settings
 
@@ -302,12 +313,13 @@ See [Teletext](teletext.md).
 
 `cmdline.txt` (a single-line text file in the SD card root; create it
 if it does not exist) is read before the SD card's filing system comes
-up, which is why these two cannot live in `Pi1MHz.cfg`:
+up, which is why these three cannot live in `Pi1MHz.cfg`:
 
 | Key | Default | Meaning |
 |---|---|---|
 | `disk_led_gpio=NN` | off | Flash an LED on Pi GPIO pin NN during disc activity. Traditionally written with a Pi-model prefix, e.g. `bcm2708.disk_led_gpio=16` (Pi Zero) or `bcm2709.disk_led_gpio=16` (Pi 3) - both prefixed and bare forms are recognised. |
 | `baud_rate=NNNN` | `115200` | Speed of the serial debug port. Only relevant if you attach a serial lead. |
+| `uart_midi=1` | off | The serial port is a [MIDI port](midi.md): start it silent at 31250 baud, so no debug text reaches the MIDI line. Set it whenever a MIDI lead is connected; `baud_rate` is then ignored. |
 
 Everything on the `cmdline.txt` line goes in one line, separated by
 spaces.

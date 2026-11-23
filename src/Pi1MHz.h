@@ -221,6 +221,7 @@ _Static_assert(Pi1MHz_STRUCT_VADDR + sizeof(Pi1MHz_t) <= LOWMEM_VPU_PROGRAM,
 
 void Pi1MHz_LED(int led);
 void Pi1MHz_Register_Memory(unsigned int access, unsigned int addr, callback_func_ptr function_ptr );
+bool Pi1MHz_Memory_Claimed(unsigned int access, unsigned int addr);
 const char *Pi1MHz_EmulatorName(unsigned int idx);
 /* name: short, static, shown against this slot in /status's "Poll max us"
    row. The row is positional, so without it every added poller silently

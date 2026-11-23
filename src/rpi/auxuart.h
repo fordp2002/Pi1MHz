@@ -31,6 +31,7 @@
 #ifndef RPI_AUX_H
 #define RPI_AUX_H
 
+#include <stdbool.h>
 #include "base.h"
 
 /* Although these values were originally from the BCM2835 Arm peripherals PDF
@@ -144,6 +145,37 @@ extern void RPI_AuxMiniUartIRQHandler(void);
 extern void RPI_AuxMiniUartInit(unsigned int baud);
 extern void RPI_AuxMiniUartWrite(char c);
 extern void RPI_AuxMiniUartWriteForce(char c);
+
+/* An owner can take the UART away from the debug log - the MIDI port
+   (midi_emulator.c) does.  From then on the log and the crash dump write
+   nothing (both are dropped, not queued), and the IRQ hands every received
+   byte to rx and fills the TX FIFO from tx.
+
+   Mute: drop the log from now on, with no owner yet.  cmdline.txt's
+   uart_midi=1 calls it straight after RPI_AuxMiniUartInit(31250), so not one
+   byte leaves the pin at the debug rate before the owner arrives.
+
+   Claim: Mute, then the rate (rounded to the nearest divider of the core
+   clock; *actual_baud, if not NULL, says what it came out at) and the owner.
+   False, changing nothing, for a NULL callback or a rate the divider cannot
+   reach.  Once only: there is no release.
+
+   The callbacks run in IRQ context:
+      rx(c, overrun)  a received byte; overrun = the FIFO lost one before it
+      tx()            the next byte to send, or -1 for none
+      tx_pending()    whether tx() has a byte, without taking it
+
+   TxKick: the owner has queued a byte - turn the TX interrupt on.  A single
+   store, so it is safe from FIQ, IRQ and the main loop alike. */
+typedef void (*aux_rx_sink_t)(uint8_t c, bool overrun);
+typedef int  (*aux_tx_source_t)(void);
+typedef bool (*aux_tx_pending_t)(void);
+
+extern void RPI_AuxMiniUartMute(void);
+extern bool RPI_AuxMiniUartClaim(unsigned int baud, aux_rx_sink_t rx, aux_tx_source_t tx,
+                                 aux_tx_pending_t tx_pending, unsigned int *actual_baud);
+extern void RPI_AuxMiniUartTxKick(void);
+extern bool RPI_AuxMiniUartMuted(void);
 
 static aux_t* const RPI_Aux = (aux_t*) AUX_BASE;
 

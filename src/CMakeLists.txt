@@ -305,6 +305,8 @@ set(core_files
    config.h
    lib/textparse.c
    ram_emulator.c
+   midi_acia.c
+   midi_emulator.c
    helpers.c
    chainboot.c
    usb_mouse.c

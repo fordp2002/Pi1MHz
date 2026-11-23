@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "asm-helpers.h"
 #include "rpi.h"
 #include "auxuart.h"
 #include "gpio.h"
-#include "arm-start.h"
 #include "info.h"
 
 #define USE_IRQ
@@ -21,10 +21,64 @@ NOINIT_SECTION static char tx_buffer[TX_BUFFER_SIZE];
 
 static volatile int tx_head;
 static volatile int tx_tail;
+#endif
 
+/* The owner (see auxuart.h).  uart_muted drops the log; owner_rx is set last
+   in a claim, so a non-NULL owner_rx means all three are there. */
+static volatile bool uart_muted;
+static aux_rx_sink_t    owner_rx;
+static aux_tx_source_t  owner_tx;
+static aux_tx_pending_t owner_tx_pending;
+
+bool RPI_AuxMiniUartMuted(void)
+{
+  return uart_muted;
+}
+
+/* The owner's half of the IRQ: every byte the RX FIFO holds, then the TX FIFO
+   filled.  The TX interrupt goes off when the owner has nothing, and straight
+   back on if a byte arrived in between: TxKick is a plain store, so a kick
+   landing between the owner's -1 and the store here would otherwise be lost,
+   leaving that byte queued until the next one. */
+static void owner_service(void)
+{
+  while (1) {
+    unsigned int iir = RPI_Aux->MU_IIR;
+    if (iir & AUX_MUIIR_INT_NOT_PENDING)
+      break;
+
+    if (iir & AUX_MUIIR_INT_IS_RX) {
+      unsigned int lsr;
+      /* LSR's overrun bit clears when LSR is read, so it goes with the first
+         byte read after the loss */
+      while ((lsr = RPI_Aux->MU_LSR) & AUX_MULSR_DATA_READY)
+        owner_rx((uint8_t)RPI_Aux->MU_IO, (lsr & AUX_MULSR_RX_OVERRUN) != 0);
+    }
+
+    if (iir & AUX_MUIIR_INT_IS_TX) {
+      while (RPI_Aux->MU_STAT & AUX_MUSTAT_SPACE_AV) {
+        int c = owner_tx();
+        if (c < 0) {
+          RPI_Aux->MU_IER = (uint8_t)AUX_MUIER_RX_INT;
+          if (owner_tx_pending())
+            RPI_Aux->MU_IER = (uint8_t)(AUX_MUIER_RX_INT | AUX_MUIER_TX_INT);
+          break;
+        }
+        RPI_Aux->MU_IO = (uint8_t)c;
+      }
+    }
+  }
+}
+
+#if defined(USE_IRQ)
 void RPI_AuxMiniUartIRQHandler(void)
 {
   _data_memory_barrier();
+  if (owner_rx != NULL) {
+    owner_service();
+    _data_memory_barrier();
+    return;
+  }
   while (1) {
 
     unsigned int iir = RPI_Aux->MU_IIR;
@@ -118,6 +172,8 @@ void RPI_AuxMiniUartInit(unsigned int baud)
 
 void RPI_AuxMiniUartWrite(char c)
 {
+  if (uart_muted)
+    return;            /* the port belongs to an owner: the log is dropped */
 #ifdef USE_IRQ
   int tmp_head = (tx_head + 1) & (TX_BUFFER_SIZE - 1);
 
@@ -151,10 +207,60 @@ void RPI_AuxMiniUartWrite(char c)
 
 void RPI_AuxMiniUartWriteForce(char c)
 {
+  /* The crash dump too: on a MIDI line its text would be read as notes */
+  if (uart_muted)
+    return;
   /* Wait until the UART has an empty space in the FIFO */
   while ((RPI_Aux->MU_LSR & AUX_MULSR_TX_EMPTY) == 0)
   {
   }
   /* Write the character to the FIFO for transmission */
   RPI_Aux->MU_IO = c;
+}
+
+void RPI_AuxMiniUartMute(void)
+{
+  unsigned int cpsr = _disable_interrupts_cspr();
+  uart_muted = true;
+#ifdef USE_IRQ
+  tx_tail = tx_head;                     /* what the log has queued goes too */
+#endif
+  RPI_Aux->MU_IER = (uint8_t)AUX_MUIER_RX_INT;   /* TX interrupt off until an owner kicks */
+  _restore_cpsr(cpsr);
+}
+
+bool RPI_AuxMiniUartClaim(unsigned int baud, aux_rx_sink_t rx, aux_tx_source_t tx,
+                          aux_tx_pending_t tx_pending, unsigned int *actual_baud)
+{
+  if (baud == 0u || rx == NULL || tx == NULL || tx_pending == NULL || owner_rx != NULL)
+    return false;
+
+  /* baud = core / (8 * (MU_BAUD + 1)), MU_BAUD 16 bits: the nearest divider */
+  uint64_t sys_freq = get_clock_rate(CORE_CLK_ID);
+  uint64_t div = (sys_freq + 4u * (uint64_t)baud) / (8u * (uint64_t)baud);
+  if (sys_freq == 0u || div < 1u || div > 65536u)
+    return false;
+
+  RPI_AuxMiniUartMute();
+
+  unsigned int cpsr = _disable_interrupts_cspr();
+  RPI_Aux->MU_CNTL = 0;                  /* receiver and transmitter off for the change */
+  RPI_Aux->MU_IIR = 0xC6;                /* both FIFOs cleared: no log byte goes out at the new rate */
+  RPI_Aux->MU_BAUD = (uint32_t)(div - 1u);
+  owner_tx = tx;
+  owner_tx_pending = tx_pending;
+  owner_rx = rx;                         /* last: the IRQ takes a non-NULL owner_rx as a full claim */
+  RPI_Aux->MU_IER = (uint8_t)AUX_MUIER_RX_INT;
+  RPI_Aux->MU_CNTL = AUX_MUCNTL_TX_ENABLE | AUX_MUCNTL_RX_ENABLE;
+  _restore_cpsr(cpsr);
+
+  if (actual_baud != NULL)
+    *actual_baud = (unsigned int)(sys_freq / (8u * div));
+  return true;
+}
+
+void RPI_AuxMiniUartTxKick(void)
+{
+  if (owner_rx != NULL)
+    RPI_Aux->MU_IER = (uint8_t)(AUX_MUIER_RX_INT | AUX_MUIER_TX_INT);
 }

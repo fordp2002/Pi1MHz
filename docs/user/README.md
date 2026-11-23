@@ -48,6 +48,7 @@ Then one guide per feature:
 - [The serial redirector and the WiFi modem (RS423, AT commands)](serial-modem.md)
 - [The telnet daemon: the Beeb's keyboard and screen over the network](telnetd.md)
 - [Sound: Music 5000/3000 and BeebSID](sound.md)
+- [MIDI in and out on the serial debug port](midi.md)
 - [RAM expansion (JIM)](ram-expansion.md)
 - [HDMI screen, mouse pointer and video](screen-and-video.md)
 - [WiFi setup](wifi.md)

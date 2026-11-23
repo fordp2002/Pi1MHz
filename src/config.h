@@ -15,11 +15,12 @@
  * THIS STORE AND cmdline.txt DO NOT CHAIN.  config_get() searches only
  * Pi1MHz.cfg, and get_cmdline_prop() (rpi/info.h) searches only the kernel
  * command line; neither falls back to the other, so a key works in exactly
- * one of the two files and is silently ignored in the other.  Two settings
+ * one of the two files and is silently ignored in the other.  Three settings
  * are still read from cmdline.txt and belong there because they are needed
  * before, or independently of, the SD card being mounted:
  *
  *     baud_rate       - the debug UART, brought up before the filesystem
+ *     uart_midi       - the debug UART is a MIDI port: silent from the start
  *     disk_led_gpio   - board wiring, and conventionally spelled
  *                       bcm2708.disk_led_gpio / bcm2709.disk_led_gpio
  *

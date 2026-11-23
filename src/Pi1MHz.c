@@ -137,6 +137,7 @@ _Static_assert(sizeof(Pi1MHzvc_asm) <= LOWMEM_VPU_PROGRAM_SIZE,
 #endif
 #include "AUN/aun_emulator.h"
 #include "teletext_emulator.h"
+#include "midi_emulator.h"
 #include "watchdog.h"
 #include "lib/textparse.h"
 
@@ -194,6 +195,13 @@ static emulator_list emulator[] = {
       and 23, in 6502code.bin, and its hooks run from FRED: &FC6F-&FC86, &FC8F-&FC9F and
       &FCB0-&FCB6.  See ramprobe.h and docs/dev/ramprobe.md. */
    {"ramprobe",ramprobe_init, 0x00, 1 },
+   /* An MC6850 MIDI port on the debug UART (GPIO 14/15): off unless
+      MIDI_addr is set.  0x08 is the Music 2000's first ACIA.  Here, after
+      every other emulator but the watchdog, so that adding it renumbered
+      nothing else - and so that every other device has registered its FRED
+      addresses when it inits: it refuses to start on one that is taken
+      (Pi1MHz_Memory_Claimed).  See docs/user/midi.md. */
+   {"MIDI",midi_emulator_init, 0x08, 0 },
    /* Last, so its poll callback re-arms the watchdog only after every other
       emulator has had its turn - a poll that stops responding still trips it. */
    {"Watchdog",watchdog_init, 0x00, 1 }
@@ -367,6 +375,16 @@ void Pi1MHz_Register_Memory(unsigned int access, unsigned int addr, callback_fun
    if (addr >= PAGE_SIZE)
       return;
    Pi1MHz->callback_table[access+addr] = function_ptr;
+}
+
+/* Whether a device has already registered a callback at addr, for a device
+   that must not share its addresses (the MIDI port).  Out of range counts
+   as taken. */
+bool Pi1MHz_Memory_Claimed(unsigned int access, unsigned int addr)
+{
+   if (addr >= PAGE_SIZE)
+      return true;
+   return Pi1MHz->callback_table[access+addr] != NULL;
 }
 
 // For each task that needs to be polled during idle it must register itself.
@@ -1054,6 +1072,14 @@ static void poll_prof_report(void)
 }
 #endif
 
+/* A cmdline.txt on/off switch: on when its value starts with 1, y or t, as
+   Pi1MHz.cfg's switches are. */
+static bool cmdline_flag(const char *key)
+{
+   const char *v = get_cmdline_prop(key);
+   return v != NULL && (v[0] == '1' || v[0] == 'y' || v[0] == 'Y' || v[0] == 't' || v[0] == 'T');
+}
+
 _Noreturn void kernel_main(void)
 {
    Pi1MHz_boot_entry_us = RPI_GetSystemTime();
@@ -1088,7 +1114,18 @@ _Noreturn void kernel_main(void)
    if (text_parse_u32_str(prop, 4000000u, &b) && b > 0u)
       baud_rate = (unsigned int) b;
 
+   /* uart_midi=1: the debug port is wired as a MIDI port (midi_emulator.c),
+      so nothing may leave it at the debug rate - a synth reads that as
+      notes.  Start it at MIDI's rate and silent, before the first log line;
+      the MIDI emulator claims it once Pi1MHz.cfg is read.  Without the
+      emulator enabled the port simply stays silent. */
+   const bool uart_midi = cmdline_flag("uart_midi");
+   if (uart_midi)
+      baud_rate = MIDI_BAUD;
+
    RPI_AuxMiniUartInit( baud_rate );
+   if (uart_midi)
+      RPI_AuxMiniUartMute();
 
    enable_MMU_and_IDCaches(0);
    RPI_BootStage(BOOT_STAGE_MMU);

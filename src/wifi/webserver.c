@@ -31,6 +31,7 @@
 #include "../rpi/display_mode.h"   /* Display mode row on /status */
 #include "../rpi/h264dec.h"           /* frame count on /status */
 #include "../rpi/audio.h"             /* owner/rate/underruns on /status */
+#include "../midi_emulator.h"         /* MIDI row on /status */
 #include "../rpi/hdmi_audio.h"
 #include "../rpi/block.h"
 #include "../rpi/rpi.h"               /* boot stage + crash record on /status */
@@ -3312,6 +3313,8 @@ static void status_serial(ws_strbuf_t *b, const status_ctx_t *ctx)
 #endif
    modem_status(tmp, sizeof tmp);
    table_row(b, "Modem", tmp);
+   midi_status(tmp, sizeof tmp);
+   table_row(b, "MIDI", tmp);
 }
 
 /* Beeb storage and SMB share. */
