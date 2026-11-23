@@ -85,12 +85,28 @@ These are the pins of the Pi1MHz serial debug header (the 3-pin 0 V / TX
 Never connect a MIDI socket to them directly, and never pull either pin
 up to 5 V.
 
-The circuits below follow the MIDI Association's 2014 electrical update
-(CA-033), which gives the resistor values for a 3.3 V transmitter. They
-are reference circuits written for this page, not a tested board: build
-them at your own risk, and check them against the specification.
+There is more than one way to get from these pins to MIDI sockets:
 
-**MIDI OUT** (3.3 V transmitter):
+- **A ready-made MIDI breakout or interface board** that accepts 3.3 V
+  logic. Several are sold for Raspberry Pi and other 3.3 V
+  microcontroller boards. This is the easiest route: GPIO 14 (the Pi's
+  TX) goes to the board's serial data input, the board's serial data
+  output goes to GPIO 15 (the Pi's RX), and 0 V to 0 V. Boards label
+  these pins differently (some name them from the board's side, some
+  from the host's), so follow the board's own documentation. Power it as
+  its maker says. Check before you buy that its signals are 3.3 V: a
+  board whose output swings to 5 V can damage the Pi.
+- **Your own circuit**, such as the minimal one below.
+
+The circuits below are a **minimal version for testing**: the fewest
+parts that make a working MIDI OUT and MIDI IN. They follow the MIDI
+Association's 2014 electrical update (CA-033), which gives the resistor
+values for a 3.3 V transmitter. They were written for this page and have
+not been built and tested as a board: build them at your own risk, and
+check them against the specification. A finished interface would usually
+add more protection than this.
+
+**Minimal MIDI OUT** (3.3 V transmitter):
 
 ```
                                  +3.3V
@@ -117,7 +133,7 @@ them at your own risk, and check them against the specification.
   only while the TX pin is low, so the UART's normal idle-high output is
   correct with no inversion.
 
-**MIDI IN** (opto-isolated, as the standard requires):
+**Minimal MIDI IN** (opto-isolated, as the standard requires):
 
 ```
    DIN pin 4 ---220R---+-----+
