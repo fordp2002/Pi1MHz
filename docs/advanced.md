@@ -45,9 +45,10 @@ greeting), so large programs or data can be pre-staged on the card.
 
 ## MIDI port (MC6850, off by default)
 
-An optional MC6850 ACIA on the serial debug pins (GPIO 14 out, 15 in, 31250
-baud), enabled by `MIDI_addr` in `Pi1MHz.cfg` - `0x08`, the Music 2000's
-first port, is recommended:
+An optional MC6850 ACIA on the level-shifter board's debug header (debug TX
+= MIDI OUT, debug RX = MIDI IN; GPIO 14/15, 31250 baud), enabled by
+`MIDI_addr` in `Pi1MHz.cfg` - `0x08`, the Music 2000's first port, is
+recommended:
 
     base      read: status    write: control (&03 master reset, &16 8N1)
     base + 1  read: RX byte   write: TX byte

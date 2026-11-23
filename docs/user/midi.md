@@ -72,26 +72,31 @@ leave alone everything listed in the
 
 ### Wiring
 
-The port is the Pi's mini UART on the 40-pin header:
+Connect to the **debug header on the Pi1MHz level-shifter board**, the
+same three pins a serial debug lead uses. The Pi's own 40-pin header is
+not reachable, because the level-shifter board is plugged onto it.
 
-| Signal | Pi GPIO | Pi header pin |
+| Debug header pin | Carries | On the Pi |
 |---|---|---|
-| MIDI OUT (TX) | GPIO 14 | 8 |
-| MIDI IN (RX) | GPIO 15 | 10 |
-| 0 V | - | 6 |
+| debug TX | MIDI OUT | GPIO 14 |
+| debug RX | MIDI IN | GPIO 15 |
+| 0 V | ground | - |
 
-These are the pins of the Pi1MHz serial debug header (the 3-pin 0 V / TX
-/ RX header that can be fitted under a Pi Zero). They are **3.3 V logic**.
-Never connect a MIDI socket to them directly, and never pull either pin
-up to 5 V.
+The board passes debug TX and RX straight through from the Pi without
+level shifting, so they are **3.3 V logic**. Never connect a MIDI socket
+to them directly, and never pull either pin up to 5 V.
+
+The header has **no power pin**. Whatever you connect (a breakout board
+or your own circuit) needs its own supply, for example a small 3.3 V
+regulator, and its 0 V must be joined to the header's 0 V.
 
 There is more than one way to get from these pins to MIDI sockets:
 
 - **A ready-made MIDI breakout or interface board** that accepts 3.3 V
   logic. Several are sold for Raspberry Pi and other 3.3 V
-  microcontroller boards. This is the easiest route: GPIO 14 (the Pi's
-  TX) goes to the board's serial data input, the board's serial data
-  output goes to GPIO 15 (the Pi's RX), and 0 V to 0 V. Boards label
+  microcontroller boards. This is the easiest route: debug TX goes to
+  the board's serial data input, the board's serial data output goes to
+  debug RX, and 0 V to 0 V. Boards label
   these pins differently (some name them from the board's side, some
   from the host's), so follow the board's own documentation. Power it as
   its maker says. Check before you buy that its signals are 3.3 V: a
@@ -114,20 +119,22 @@ add more protection than this.
                                   33R  (RA, 0.5 W)
                                    |
                                    +----------- DIN pin 4
-   GPIO14 --+-- [buffer] ---10R----+----------- DIN pin 5
-   (pin 8)  |    (RC)
+ debug TX --+-- [buffer] ---10R----+----------- DIN pin 5
+ (GPIO 14)  |    (RC)
             |                                   DIN pin 2 -- 0 V (shield)
            10k
             |
-          +3.3V
+          +3.3V    (+3.3V here and below: your circuit's own
+                    supply, its 0 V joined to the header's 0 V)
 ```
 
 - The buffer is a single 3.3 V non-inverting gate such as a
   74LVC1G125 (output enabled) or 74LVC1G17, powered from 3.3 V. It keeps
-  a short circuit on the MIDI lead away from the Pi's GPIO: with 10 R in
+  a short circuit on the MIDI lead away from debug TX, which is the
+  Pi's GPIO pin with nothing in between: with 10 R in
   series a short would ask the pin for far more current than it can give.
 - The 10 k pull-up holds the line idle (no current) while the Pi boots,
-  before the UART is set up. Without it GPIO 14 can sit low, which a
+  before the UART is set up. Without it debug TX can sit low, which a
   synth sees as a long break and may decode as a stray byte.
 - The current loop is the MIDI standard one: current flows (logic 0)
   only while the TX pin is low, so the UART's normal idle-high output is
@@ -143,7 +150,7 @@ add more protection than this.
                      to pin 4)|
    DIN pin 5 ----------+-----+
 
-   Opto output (open collector) ---+--- GPIO15 (pin 10)
+   Opto output (open collector) ---+--- debug RX (GPIO 15)
                                    |
                                   1k
                                    |
@@ -320,7 +327,7 @@ In `cmdline.txt`:
   `not started:` and a reason - `is used by another device` means the
   address clashes: choose a free one.
 - **Notes play but the synth also plays junk at power-on.** Add
-  `uart_midi=1` to `cmdline.txt`, and fit the 10 k pull-up on GPIO 14.
+  `uart_midi=1` to `cmdline.txt`, and fit the 10 k pull-up on debug TX.
 - **Nothing comes in.** Try the loopback test (L) with a lead from OUT to
   IN: if that passes, the MIDI IN circuit or the sending device is at
   fault. Check the opto-isolator is a 3.3 V type and the pull-up goes to
@@ -484,8 +491,9 @@ the two firmware files are compiled with the strict warning set first.
 
 ## Part 3 - Limitations
 
-- **One OUT and one IN.** GPIO 14/15 are the only UART pins on the
-  header that the 1MHz bus does not use, and they give one UART. The
+- **One OUT and one IN.** Debug TX and RX (GPIO 14/15) are the only
+  UART pins the level-shifter board brings out apart from the 1MHz bus,
+  and they give one UART. The
   Music 2000's OUT 2 and OUT 3 are not emulated.
 - **No debug log while it is on.** The log, and the crash dump if the
   firmware faults, are thrown away. Use the web `/status` page; the
